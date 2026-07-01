@@ -8,10 +8,10 @@ const config = {
   tagline: 'Deploy Laravel applications on UConn\'s OpenShift cluster',
   favicon: 'img/favicon.ico',
 
-  url: 'https://uconn-openshift-laravel.example.com',
-  baseUrl: '/',
+  url: 'https://bdaley.github.io',
+  baseUrl: '/uconn-openshift-laravel/',
 
-  organizationName: 'uconn',
+  organizationName: 'bdaley',
   projectName: 'uconn-openshift-laravel',
 
   onBrokenLinks: 'throw',
