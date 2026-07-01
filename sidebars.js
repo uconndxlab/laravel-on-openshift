@@ -6,6 +6,11 @@ const sidebars = {
     'quickstart',
     {
       type: 'category',
+      label: 'Deployment Guides',
+      items: ['guides/persistent-storage', 'guides/production-patterns'],
+    },
+    {
+      type: 'category',
       label: 'Quay Registry',
       items: ['quay/getting-started'],
     },

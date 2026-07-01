@@ -72,10 +72,18 @@ const config = {
           {
             title: 'Docs',
             items: [
-              {
-                label: 'Quickstart',
-                to: '/docs/quickstart',
-              },
+          {
+            label: 'Quickstart',
+            to: '/docs/quickstart',
+          },
+          {
+            label: 'Persistent Storage',
+            to: '/docs/guides/persistent-storage',
+          },
+          {
+            label: 'Production Patterns',
+            to: '/docs/guides/production-patterns',
+          },
             ],
           },
           {

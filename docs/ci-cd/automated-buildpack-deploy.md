@@ -13,6 +13,21 @@ git push → GitHub webhook → EventListener → PipelineRun
                    (buildpack → Quay)      (deploy)
 ```
 
+## How Tekton works
+
+Before diving into the YAML, here's a quick overview of the Tekton resources used:
+
+| Resource | What it does |
+|---|---|
+| **Task** | A unit of work (e.g., "build image" or "deploy"). Each Task runs as a pod with one or more steps (containers). |
+| **Pipeline** | A sequence of Tasks wired together. Outputs from one Task can feed into the next. |
+| **PipelineRun** | An instantiation of a Pipeline — like "run this Pipeline with these specific parameters." |
+| **TriggerBinding** | Extracts values from a webhook payload (e.g., Git repo URL, commit SHA). |
+| **TriggerTemplate** | Creates a PipelineRun using the extracted values, parameterized with `$(tt.params. ...)`. |
+| **EventListener** | A webhook receiver. When GitHub POSTs to it, the EventListener fires the TriggerBinding and TriggerTemplate to create a PipelineRun. |
+
+The flow: **git push → GitHub webhook → EventListener → TriggerBinding + TriggerTemplate → PipelineRun → Tasks run → app deploys**
+
 ## Prerequisites
 
 - **Tekton Pipelines + Tekton Triggers** installed in your OpenShift cluster
@@ -20,6 +35,8 @@ git push → GitHub webhook → EventListener → PipelineRun
 - **OpenShift pipeline ServiceAccount** — already set up with `quay-pull-<team>` (see [Quay getting-started](../quay/getting-started.md#find-your-imagepullsecret))
 - **GitHub webhook** reachable via an OpenShift Route
 - A Laravel project with `package.json` + `composer.json` at the root
+
+> **Network policy note**: If your namespace has restrictive network policies, ensure the Tekton pipeline pods can egress to `quay.apps.uconn.edu` (for pushing images) and to your Git provider. Without egress, `pack build --publish` and `git clone` will fail.
 
 ## 1. Create the Quay push secret
 
@@ -131,6 +148,26 @@ spec:
 ```
 
 This uses the pipeline ServiceAccount — it already has the permissions needed to update Deployments in the namespace.
+
+### Rolling back a bad deploy
+
+If a pipeline pushes a broken image, revert to the previous working revision:
+
+```bash
+oc rollout undo deployment/myapp -n <team>-dev
+```
+
+List all revisions:
+
+```bash
+oc rollout history deployment/myapp -n <team>-dev
+```
+
+To roll back to a specific revision:
+
+```bash
+oc rollout undo deployment/myapp --to-revision=3 -n <team>-dev
+```
 
 ## 3. Wire them together in a Pipeline
 
@@ -362,6 +399,108 @@ With the webhook active, every push to `main` will:
 3. The pipeline clones the repo at that commit
 4. `pack build --publish` builds a Heroku-buildpack image and pushes it to Quay as `dev:<full-sha>` + `dev:latest`
 5. `oc set image` updates the Deployment, triggering a rollout
+
+## Adding a migration step
+
+If your app uses SQLite or another database, you typically need to run `php artisan migrate --force` after each deploy. Add a **migration task** to the pipeline.
+
+### Migration task
+
+```yaml
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: laravel-migrate
+spec:
+  params:
+    - name: DEPLOYMENT
+      type: string
+    - name: NAMESPACE
+      type: string
+  steps:
+    - name: migrate
+      image: registry.access.redhat.com/ubi8/openshift-cli:latest
+      script: |
+        # Wait for the new pod to be ready, then run migrations
+        oc rollout status "deployment/$(params.DEPLOYMENT)" \
+          -n "$(params.NAMESPACE)" --timeout=5m
+        oc exec "deployment/$(params.DEPLOYMENT)" \
+          -n "$(params.NAMESPACE)" -- php artisan migrate --force
+```
+
+### Wire it into the pipeline
+
+Add the task after `deploy` and set `runAfter: [deploy]`:
+
+```yaml
+  tasks:
+    # ... build task ...
+    # ... deploy task ...
+    - name: migrate
+      taskRef:
+        name: laravel-migrate
+      runAfter: [deploy]
+      params:
+        - name: DEPLOYMENT
+          value: $(params.DEPLOYMENT)
+        - name: NAMESPACE
+          value: $(params.NAMESPACE)
+```
+
+### Understanding migration risk
+
+Migrations run **after** the new image is deployed. If a migration fails:
+
+- The new image is already rolling out (or rolled out)
+- `oc rollout status` will fail if the deploy itself succeeds but the migration command fails inside the task
+- **Mitigation**: run migrations as a standalone [Kubernetes Job](../guides/persistent-storage.md#b-run-as-a-kubernetes-job) instead, or use a "blue-green" deployment pattern
+
+For SQLite specifically, the migration task must mount the same `sqlite` PVC that your app uses. Add a workspace for the PVC:
+
+```yaml
+kind: Task
+metadata:
+  name: laravel-migrate
+spec:
+  workspaces:
+    - name: sqlite
+  steps:
+    - name: migrate
+      image: registry.access.redhat.com/ubi8/openshift-cli:latest
+      script: |
+        oc rollout status "deployment/$(params.DEPLOYMENT)" \
+          -n "$(params.NAMESPACE)" --timeout=5m
+        # Mount the sqlite PVC into a temporary pod to run migrations
+        cat <<EOF | oc apply -f - -n "$(params.NAMESPACE)"
+apiVersion: v1
+kind: Pod
+metadata:
+  name: migrate-$(params.DEPLOYMENT)
+  labels:
+    app: migrate
+spec:
+  containers:
+    - name: migrate
+      image: "$(params.IMAGE)"
+      command: ["php", "artisan", "migrate", "--force"]
+      envFrom:
+        - configMapRef:
+            name: laravel-env
+      volumeMounts:
+        - name: sqlite
+          mountPath: /var/www/html/database
+  volumes:
+    - name: sqlite
+      persistentVolumeClaim:
+        claimName: laravel-sqlite
+  restartPolicy: Never
+EOF
+        oc wait --for=condition=complete pod/migrate-$(params.DEPLOYMENT) \
+          -n "$(params.NAMESPACE)" --timeout=5m
+        oc delete pod/migrate-$(params.DEPLOYMENT) -n "$(params.NAMESPACE)" --ignore-not-found
+```
+
+Then add the `sqlite` PVC workspace to the pipeline and wire it through. See the [persistent storage guide](../guides/persistent-storage.md#c-automate-in-cicd) for more details.
 
 ## Versioning strategy
 
