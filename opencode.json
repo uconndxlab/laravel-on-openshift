@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "kubernetes": {
+      "type": "local",
+      "command": ["npx", "-y", "kubernetes-mcp-server@latest"],
+      "enabled": true,
+      "environment": {
+        // Optional: Specify a custom kubeconfig path if it's not in the default (~/.kube/config) location
+        // "KUBECONFIG": "/path/to/your/kubeconfig"
+      }
+    }
+  }
+}
