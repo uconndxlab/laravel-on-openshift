@@ -8,8 +8,12 @@ const config = {
   tagline: 'Deploy Laravel applications on UConn\'s OpenShift cluster',
   favicon: 'img/favicon.ico',
 
-  url: 'https://bdaley.github.io',
-  baseUrl: '/uconn-openshift-laravel/',
+  url: process.env.DEPLOY_TARGET === 'github-pages'
+    ? 'https://bdaley.github.io'
+    : 'http://localhost:3000',
+  baseUrl: process.env.DEPLOY_TARGET === 'github-pages'
+    ? '/uconn-openshift-laravel/'
+    : '/',
 
   organizationName: 'bdaley',
   projectName: 'uconn-openshift-laravel',
@@ -29,7 +33,7 @@ const config = {
         docs: {
           sidebarPath: './sidebars.js',
           editUrl:
-            'https://github.com/uconn/uconn-openshift-laravel/tree/main/',
+            'https://github.com/bdaley/uconn-openshift-laravel/tree/main/',
         },
         blog: false,
         theme: {
