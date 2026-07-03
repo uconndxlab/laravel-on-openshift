@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/uconn/uconn-openshift-laravel
+    targetRevision: main
+    path: templates/openshift
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: <team>-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - CreateNamespace=true
+  parameters:
+    - name: APP_NAME
+      value: myapp
+    - name: NAMESPACE
+      value: <team>-dev
+    - name: IMAGE
+      value: quay.apps.uconn.edu/<org>/dev
+    - name: IMAGE_TAG
+      value: latest
+    - name: APP_ENV
+      value: production
+    - name: APP_URL
+      value: https://myapp-<team>-dev.apps.uconn.edu

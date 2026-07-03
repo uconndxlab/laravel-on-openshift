@@ -149,6 +149,84 @@ spec:
 
 This uses the pipeline ServiceAccount — it already has the permissions needed to update Deployments in the namespace.
 
+### Using the OpenShift Template in a pipeline
+
+Instead of `oc set image`, you can use the [OpenShift Template](/docs/templates/openshift-templates.md) to deploy the full set of resources (Deployment, Service, Route, PVCs, ConfigMap, Secret) in a single step:
+
+```yaml
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: buildpack-deploy
+spec:
+  params:
+    - name: IMAGE_PREFIX
+      type: string
+    - name: IMAGE_TAG
+      type: string
+    - name: DEPLOYMENT
+      type: string
+    - name: NAMESPACE
+      type: string
+    - name: APP_KEY
+      type: string
+    - name: APP_URL
+      type: string
+  steps:
+    - name: deploy
+      image: registry.access.redhat.com/ubi8/openshift-cli:latest
+      script: |
+        oc process -f https://raw.githubusercontent.com/uconn/uconn-openshift-laravel/main/templates/openshift/laravel-template.yaml \
+          -p APP_NAME=$(params.DEPLOYMENT) \
+          -p NAMESPACE=$(params.NAMESPACE) \
+          -p IMAGE=$(params.IMAGE_PREFIX) \
+          -p IMAGE_TAG=$(params.IMAGE_TAG) \
+          -p APP_KEY=$(params.APP_KEY) \
+          -p APP_URL=$(params.APP_URL) \
+          | oc apply -f - -n $(params.NAMESPACE)
+```
+
+This approach is useful for initial deployments or when you need full manifest control (e.g., you changed a ConfigMap value). For ongoing image rollouts, `oc set image` (the original deploy task) is simpler and faster.
+
+### Alternative: Helm in a pipeline
+
+If your team uses Helm, the deploy task can call `helm upgrade` instead:
+
+```yaml
+steps:
+  - name: deploy
+    image: alpine/helm:3.14
+    script: |
+      helm upgrade --install $(params.DEPLOYMENT) ./templates/helm/laravel \
+        --namespace $(params.NAMESPACE) \
+        --set image.repository=$(params.IMAGE_PREFIX) \
+        --set image.tag=$(params.IMAGE_TAG) \
+        --set appKey=$(params.APP_KEY) \
+        --set appUrl=$(params.APP_URL)
+```
+
+### Alternative: ArgoCD GitOps
+
+With [ArgoCD](/docs/templates/argocd.md), your pipeline only needs to **build and push the image**. ArgoCD monitors your Git repository and syncs the deployment automatically — no deploy task required. The pipeline becomes:
+
+```yaml
+tasks:
+  - name: build
+    taskRef:
+      name: buildpack-build
+    params:
+      - name: GIT_REPO
+        value: $(params.GIT_REPO)
+      - name: GIT_REVISION
+        value: $(params.GIT_REVISION)
+      - name: IMAGE
+        value: $(params.IMAGE_PREFIX):$(params.GIT_REVISION)
+      - name: IMAGE_LATEST
+        value: $(params.IMAGE_PREFIX):latest
+```
+
+See the [Deployment Templates overview](/docs/templates/overview.md) to choose the right approach for your team.
+
 ### Rolling back a bad deploy
 
 If a pipeline pushes a broken image, revert to the previous working revision:

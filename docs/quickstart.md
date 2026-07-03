@@ -1,6 +1,8 @@
 # Quickstart
 
-Deploy a Laravel application to OpenShift from scratch, including persistent storage for SQLite, health checks, and automated rollouts.
+Deploy a Laravel application to OpenShift from scratch, including persistent storage for SQLite, health checks, and automated rollouts — using the [OpenShift Template](templates/openshift-templates.md) for a single-command deployment.
+
+> For a step-by-step breakdown of each individual resource, see the [imperative quickstart reference](quickstart-imperative.md).
 
 ## Prerequisites
 
@@ -119,182 +121,37 @@ This single command:
 
 > To test locally first: `pack build myapp:latest --builder heroku/builder:22 && docker run -it -p 8080:8080 -e APP_KEY=$(php artisan key:generate --show) myapp:latest`
 
-## 4. Deploy on OpenShift
+## 4. Deploy everything with the template
+
+Now deploy all resources at once using the [OpenShift Template](templates/openshift-templates.md):
 
 ```bash
-oc new-app quay.apps.uconn.edu/<org>/dev:latest --name=myapp -n <team>-dev
+oc process -f templates/openshift/laravel-template.yaml \
+  -p APP_NAME=myapp \
+  -p NAMESPACE=<team>-dev \
+  -p IMAGE=quay.apps.uconn.edu/<org>/dev \
+  -p IMAGE_TAG=latest \
+  -p APP_KEY=$(php artisan key:generate --show) \
+  -p APP_URL=https://myapp-<team>-dev.apps.uconn.edu \
+  -p DB_CONNECTION=sqlite \
+  -p LOG_CHANNEL=stderr \
+  | oc apply -f - -n <team>-dev
 ```
 
-This creates a **Deployment** (manages pods) and a **Service** (stable network endpoint). OpenShift inspects the image and auto-detects port 8080. Verify:
+This single command creates all the resources your app needs:
 
-```bash
-oc get svc myapp -n <team>-dev -o jsonpath='{.spec.ports[].port}'
-# Should print: 8080
-```
+- **Deployment** — with init container, health probes, resource limits, and volume mounts
+- **Service** — stable network endpoint on port 8080
+- **Route** — public HTTPS URL (edge TLS termination)
+- **PersistentVolumeClaims** — SQLite database (1 Gi) and Laravel storage (5 Gi)
+- **Secret** — `APP_KEY` and any other sensitive values
+- **ConfigMap** — `APP_ENV`, `APP_DEBUG`, `APP_URL`, `DB_CONNECTION`, `LOG_CHANNEL`, `SESSION_DRIVER`
 
-If the port is missing, recreate with `oc new-app --name=myapp --image=... --port=8080 -n <team>-dev`.
+The template uses the same image for the init container and the main app container, sets up the directory structure automatically, and configures survival-guaranteeing probes.
 
-> The Deployment and Service are the building blocks: the Deployment ensures your app stays running, and the Service gives it a fixed IP and DNS name inside the cluster.
+> **SQLite + replicas**: SQLite cannot handle concurrent writes from multiple pods. The template sets `replicas: 1`. See the [persistent storage guide](guides/persistent-storage.md#sqlite-and-replicas) for more.
 
-The pod will start but won't fully work yet — it needs persistent storage, environment variables, and health checks.
-
-## 5. Create persistent storage
-
-Create two PersistentVolumeClaims — one for the SQLite database and one for Laravel's `storage/` directory:
-
-```bash
-cat <<EOF | oc apply -f - -n <team>-dev
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: laravel-sqlite
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: laravel-storage
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
-EOF
-```
-
-## 6. Mount storage in the deployment
-
-Attach the PVCs to your deployment:
-
-```bash
-oc set volume deployment/myapp --add --name=sqlite \
-  --type=persistentVolumeClaim --claim-name=laravel-sqlite \
-  --mount-path=/var/www/html/database -n <team>-dev
-
-oc set volume deployment/myapp --add --name=laravel-storage \
-  --type=persistentVolumeClaim --claim-name=laravel-storage \
-  --mount-path=/var/www/html/storage -n <team>-dev
-```
-
-When a PVC is first mounted, it's empty. An **init container** runs before the main app to set up the directory structure:
-
-```bash
-oc patch deployment/myapp --type=strategic -p='
-{
-  "spec": {
-    "template": {
-      "spec": {
-        "initContainers": [
-          {
-            "name": "init-storage",
-            "image": "quay.apps.uconn.edu/<org>/dev:latest",
-            "command": [
-              "sh", "-c",
-              "mkdir -p storage/app/public storage/framework/cache storage/framework/views storage/framework/sessions storage/logs && chmod -R 775 storage && touch database/database.sqlite && php artisan storage:link || true"
-            ],
-            "volumeMounts": [
-              {"name": "sqlite", "mountPath": "/var/www/html/database"},
-              {"name": "laravel-storage", "mountPath": "/var/www/html/storage"}
-            ]
-          }
-        ]
-      }
-    }
-  }
-}' -n <team>-dev
-```
-
-Init containers run once, complete, and exit before the main container starts. This one creates the directories Laravel expects, sets permissions, creates the SQLite file, and links `public/storage` to `storage/app/public`.
-
-> **SQLite + replicas**: SQLite cannot handle concurrent writes from multiple pods. Keep replicas at 1: `oc scale deployment/myapp --replicas=1 -n <team>-dev`. See the [persistent storage guide](guides/persistent-storage.md#sqlite-and-replicas) for more.
-
-## 7. Add health checks
-
-OpenShift uses **probes** to know when your app is alive and ready to serve traffic:
-
-```bash
-oc set probe deployment/myapp --liveness --get-url=http://:8080/ -n <team>-dev
-oc set probe deployment/myapp --readiness --get-url=http://:8080/ -n <team>-dev
-```
-
-- **Liveness**: if the app crashes or deadlocks, OpenShift restarts the pod
-- **Readiness**: if the app isn't responding, OpenShift stops sending traffic until it recovers
-
-For a more robust setup, add a dedicated `/health` endpoint to your Laravel app that also checks database connectivity.
-
-## 8. Set resource limits
-
-Prevent a pod from consuming all cluster resources:
-
-```bash
-oc set resources deployment/myapp --limits=cpu=500m,memory=512Mi \
-  --requests=cpu=200m,memory=256Mi -n <team>-dev
-```
-
-- **Requests**: minimum guaranteed resources
-- **Limits**: maximum allowed before throttling/OOM
-
-Start conservative and adjust based on `oc adm top pods` or `oc describe pod` metrics.
-
-## 9. Configure environment variables
-
-Sensitive values like `APP_KEY` should use a **Secret**, not a ConfigMap. General configuration goes in a ConfigMap.
-
-Create the Secret for secrets:
-
-```bash
-oc create secret generic laravel-secrets \
-  --from-literal=APP_KEY=$(php artisan key:generate --show) \
-  -n <team>-dev
-```
-
-Create the ConfigMap for general config:
-
-```bash
-oc create configmap laravel-env \
-  --from-literal=APP_ENV=production \
-  --from-literal=APP_DEBUG=false \
-  --from-literal=APP_URL=https://<your-route> \
-  --from-literal=DB_CONNECTION=sqlite \
-  --from-literal=LOG_CHANNEL=stderr \
-  --from-literal=SESSION_DRIVER=cookie \
-  -n <team>-dev
-```
-
-Attach both to the deployment:
-
-```bash
-oc set env deployment/myapp --from=secret/laravel-secrets -n <team>-dev
-oc set env deployment/myapp --from=configmap/laravel-env -n <team>-dev
-```
-
-> `LOG_CHANNEL=stderr` sends Laravel logs to stderr so they appear in `oc logs`. The default `stack` channel writes to a file on disk, which you'd need to mount — stderr is simpler in containers.
-
-If you don't know the Route URL yet, set `APP_URL` after exposing the route (step 10), then run `oc set env deployment/myapp --from=configmap/laravel-env --overwrite -n <team>-dev`.
-
-## 10. Expose the route
-
-```bash
-oc create route edge myapp --service=myapp -n <team>-dev
-```
-
-This creates a public HTTPS URL for your app. Edge termination means TLS is handled at the router, with plain HTTP inside the cluster.
-
-Get the URL:
-
-```bash
-oc get route myapp -n <team>-dev -o jsonpath='https://{.spec.host}{"\n"}'
-```
-
-> The quickstart uses `edge` TLS. If you need passthrough or re-encrypt, use `oc create route passthrough` or `oc create route reencrypt` instead.
-
-## 11. Check the deployment
+## 5. Check the deployment
 
 ```bash
 # Watch the pod come up
@@ -304,7 +161,7 @@ oc get pods -n <team>-dev --watch
 Once the pod is `Running` and `READY` shows `1/1`:
 
 ```bash
-# View the route
+# Get the application URL
 oc get route myapp -n <team>-dev -o jsonpath='https://{.spec.host}{"\n"}'
 
 # Run migrations
@@ -325,51 +182,45 @@ To access a pod directly from your machine without going through the Route:
 oc port-forward deployment/myapp 8080:8080 -n <team>-dev
 ```
 
-Then visit http://localhost:8080 in your browser. Useful for testing features that aren't exposed via the Route or for debugging authentication flows.
+Then visit http://localhost:8080 in your browser.
+
+### Updating after deploy
+
+To roll out a new image tag:
+
+```bash
+oc set image deployment/myapp app=quay.apps.uconn.edu/<org>/dev:new-tag -n <team>-dev
+```
 
 ### Rolling back a bad deploy
-
-If a new image causes problems:
 
 ```bash
 oc rollout undo deployment/myapp -n <team>-dev
 ```
 
-This reverts to the previous revision. List all revisions with `oc rollout history deployment/myapp -n <team>-dev`.
+List all revisions with `oc rollout history deployment/myapp -n <team>-dev`.
 
-## 12. Promote to test and prod
+## 6. Promote to test and prod
 
-Each environment (dev, test, prod) lives in its own namespace. The promotion process is:
-
-1. Re-tag the image in Quay for the target environment
-2. Deploy in the target namespace
-3. Create environment-specific secrets (each env needs its own `APP_KEY`)
-4. Repeat the storage, probes, and resource setup
+Each environment (dev, test, prod) lives in its own namespace. Use the same template with environment-specific parameters:
 
 ```bash
-# 1. Re-tag in Quay
+# 1. Re-tag the image in Quay for the target environment
 podman pull quay.apps.uconn.edu/<org>/dev:latest
 podman tag quay.apps.uconn.edu/<org>/dev:latest quay.apps.uconn.edu/<org>/test:latest
 podman push quay.apps.uconn.edu/<org>/test:latest
 
-# 2. Deploy in test namespace
-oc new-app quay.apps.uconn.edu/<org>/test:latest --name=myapp -n <team>-test
-
-# 3. Create environment-specific secrets and config
-oc create secret generic laravel-secrets \
-  --from-literal=APP_KEY=$(php artisan key:generate --show) \
-  -n <team>-test
-
-oc create configmap laravel-env \
-  --from-literal=APP_ENV=testing \
-  --from-literal=APP_DEBUG=false \
-  --from-literal=APP_URL=https://myapp-test.apps.uconn.edu \
-  --from-literal=DB_CONNECTION=sqlite \
-  --from-literal=LOG_CHANNEL=stderr \
-  -n <team>-test
+# 2. Deploy in test namespace using the template
+oc process -f templates/openshift/laravel-template.yaml \
+  -p APP_NAME=myapp \
+  -p NAMESPACE=<team>-test \
+  -p IMAGE=quay.apps.uconn.edu/<org>/test \
+  -p APP_KEY=$(php artisan key:generate --show) \
+  -p APP_URL=https://myapp-<team>-test.apps.uconn.edu \
+  -p APP_ENV=testing \
+  -p LOG_CHANNEL=stderr \
+  | oc apply -f - -n <team>-test
 ```
-
-Then repeat steps 5–11 in the target namespace (PVCs, volumes, init container, probes, resources, route, verify).
 
 > Each environment must have its **own unique `APP_KEY`**. Never share keys across environments — it's a security risk and can cause encrypted data (sessions, cookies) to be unreadable.
 
@@ -388,7 +239,10 @@ oc logs deployment/myapp -n <team>-test
 
 ## Next steps
 
-- Learn more about [building images with Heroku buildpacks](images/heroku-buildpack.md) (custom extensions, Nginx config)
-- Set up [automated deployments with Tekton](ci-cd/automated-buildpack-deploy.md) so every `git push` triggers a build and rollout
+- Learn how the [OpenShift Template](templates/openshift-templates.md) works and how to customize it
+- Create a reusable [Helm chart](templates/helm.md) for deployments outside of OpenShift
+- Set up [ArgoCD GitOps](templates/argocd.md) for automatic, declarative deployments
+- Learn more about [building images with Heroku buildpacks](images/heroku-buildpack.md)
+- Set up [automated deployments with Tekton](ci-cd/automated-buildpack-deploy.md)
 - Read about [persistent storage options](guides/persistent-storage.md) including backup strategies and MySQL migration
 - Explore [production patterns](guides/production-patterns.md) for queue workers, scheduled tasks, and blue-green deployments

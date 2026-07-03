@@ -1,0 +1,27 @@
+appName: myapp
+
+image:
+  repository: quay.apps.uconn.edu/<org>/dev
+  tag: latest
+
+replicas: 1
+
+appKey: ""
+appEnv: production
+appDebug: "false"
+appUrl: ""
+dbConnection: sqlite
+logChannel: stderr
+sessionDriver: cookie
+
+persistence:
+  sqliteSize: 1Gi
+  storageSize: 5Gi
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

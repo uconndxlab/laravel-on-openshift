@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "laravel.fullname" . }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "laravel.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "laravel.fullname" . }}
+    spec:
+      initContainers:
+        - name: init-storage
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p storage/app/public storage/framework/cache \
+                storage/framework/views storage/framework/sessions storage/logs
+              chmod -R 775 storage
+              touch database/database.sqlite
+              php artisan storage:link || true
+          volumeMounts:
+            - name: sqlite
+              mountPath: /var/www/html/database
+            - name: laravel-storage
+              mountPath: /var/www/html/storage
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: {{ include "laravel.fullname" . }}-secrets
+            - configMapRef:
+                name: {{ include "laravel.fullname" . }}-env
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: sqlite
+              mountPath: /var/www/html/database
+            - name: laravel-storage
+              mountPath: /var/www/html/storage
+      volumes:
+        - name: sqlite
+          persistentVolumeClaim:
+            claimName: {{ include "laravel.fullname" . }}-sqlite
+        - name: laravel-storage
+          persistentVolumeClaim:
+            claimName: {{ include "laravel.fullname" . }}-storage

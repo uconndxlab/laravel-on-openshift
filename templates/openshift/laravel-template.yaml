@@ -1,0 +1,232 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: laravel-app
+  annotations:
+    description: >
+      Deploy a Laravel application with persistent SQLite storage, health
+      checks, and resource limits on OpenShift.
+    tags: laravel, php, sqlite
+    iconClass: icon-php
+
+parameters:
+  - name: APP_NAME
+    description: Name of the application (used for resource names)
+    required: true
+
+  - name: NAMESPACE
+    description: OpenShift namespace (project) to deploy into
+    required: true
+
+  - name: IMAGE
+    description: Quay image repository (without tag)
+    required: true
+
+  - name: IMAGE_TAG
+    description: Image tag to deploy
+    value: latest
+
+  - name: APP_KEY
+    description: Laravel application encryption key (32-char base64 string)
+    required: true
+    generate: expression
+    from: "[a-zA-Z0-9]{32}"
+
+  - name: APP_ENV
+    description: Laravel application environment
+    value: production
+
+  - name: APP_DEBUG
+    description: Enable Laravel debug mode
+    value: "false"
+
+  - name: APP_URL
+    description: Public URL of the application
+    required: true
+
+  - name: DB_CONNECTION
+    description: Database connection (sqlite, mysql, pgsql)
+    value: sqlite
+
+  - name: LOG_CHANNEL
+    description: Laravel log channel
+    value: stderr
+
+  - name: SESSION_DRIVER
+    description: Laravel session driver
+    value: cookie
+
+  - name: REPLICAS
+    description: Number of application replicas
+    value: "1"
+
+  - name: SQLITE_STORAGE_SIZE
+    description: Size of the SQLite persistent volume
+    value: 1Gi
+
+  - name: STORAGE_SIZE
+    description: Size of the Laravel storage persistent volume
+    value: 5Gi
+
+  - name: CPU_REQUEST
+    description: Minimum CPU per pod
+    value: 200m
+
+  - name: CPU_LIMIT
+    description: Maximum CPU per pod
+    value: 500m
+
+  - name: MEMORY_REQUEST
+    description: Minimum memory per pod
+    value: 256Mi
+
+  - name: MEMORY_LIMIT
+    description: Maximum memory per pod
+    value: 512Mi
+
+objects:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${APP_NAME}-sqlite
+      namespace: ${NAMESPACE}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: ${SQLITE_STORAGE_SIZE}
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${APP_NAME}-storage
+      namespace: ${NAMESPACE}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: ${STORAGE_SIZE}
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ${APP_NAME}-secrets
+      namespace: ${NAMESPACE}
+    type: Opaque
+    stringData:
+      APP_KEY: ${APP_KEY}
+
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${APP_NAME}-env
+      namespace: ${NAMESPACE}
+    data:
+      APP_ENV: ${APP_ENV}
+      APP_DEBUG: ${APP_DEBUG}
+      APP_URL: ${APP_URL}
+      DB_CONNECTION: ${DB_CONNECTION}
+      LOG_CHANNEL: ${LOG_CHANNEL}
+      SESSION_DRIVER: ${SESSION_DRIVER}
+
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${APP_NAME}
+      namespace: ${NAMESPACE}
+    spec:
+      replicas: ${{REPLICAS}}
+      selector:
+        matchLabels:
+          app: ${APP_NAME}
+      template:
+        metadata:
+          labels:
+            app: ${APP_NAME}
+        spec:
+          initContainers:
+            - name: init-storage
+              image: ${IMAGE}:${IMAGE_TAG}
+              command:
+                - sh
+                - -c
+                - |
+                  mkdir -p storage/app/public storage/framework/cache \
+                    storage/framework/views storage/framework/sessions storage/logs
+                  chmod -R 775 storage
+                  touch database/database.sqlite
+                  php artisan storage:link || true
+              volumeMounts:
+                - name: sqlite
+                  mountPath: /var/www/html/database
+                - name: laravel-storage
+                  mountPath: /var/www/html/storage
+          containers:
+            - name: app
+              image: ${IMAGE}:${IMAGE_TAG}
+              ports:
+                - containerPort: 8080
+              envFrom:
+                - secretRef:
+                    name: ${APP_NAME}-secrets
+                - configMapRef:
+                    name: ${APP_NAME}-env
+              resources:
+                requests:
+                  memory: ${MEMORY_REQUEST}
+                  cpu: ${CPU_REQUEST}
+                limits:
+                  memory: ${MEMORY_LIMIT}
+                  cpu: ${CPU_LIMIT}
+              livenessProbe:
+                httpGet:
+                  path: /
+                  port: 8080
+                initialDelaySeconds: 30
+                periodSeconds: 10
+              readinessProbe:
+                httpGet:
+                  path: /
+                  port: 8080
+                initialDelaySeconds: 5
+                periodSeconds: 5
+              volumeMounts:
+                - name: sqlite
+                  mountPath: /var/www/html/database
+                - name: laravel-storage
+                  mountPath: /var/www/html/storage
+          volumes:
+            - name: sqlite
+              persistentVolumeClaim:
+                claimName: ${APP_NAME}-sqlite
+            - name: laravel-storage
+              persistentVolumeClaim:
+                claimName: ${APP_NAME}-storage
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${APP_NAME}
+      namespace: ${NAMESPACE}
+    spec:
+      selector:
+        app: ${APP_NAME}
+      ports:
+        - port: 8080
+          targetPort: 8080
+
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: ${APP_NAME}
+      namespace: ${NAMESPACE}
+    spec:
+      to:
+        kind: Service
+        name: ${APP_NAME}
+      port:
+        targetPort: 8080
+      tls:
+        termination: edge

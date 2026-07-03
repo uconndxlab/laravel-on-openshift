@@ -6,6 +6,11 @@ const sidebars = {
     'quickstart',
     {
       type: 'category',
+      label: 'Deployment Templates',
+      items: ['templates/overview', 'templates/openshift-templates', 'templates/helm', 'templates/argocd'],
+    },
+    {
+      type: 'category',
       label: 'Deployment Guides',
       items: ['guides/persistent-storage', 'guides/production-patterns'],
     },
@@ -24,6 +29,7 @@ const sidebars = {
       label: 'CI/CD',
       items: ['ci-cd/tekton-bitbucket', 'ci-cd/automated-buildpack-deploy'],
     },
+    'quickstart-imperative',
     'troubleshooting',
   ],
 };

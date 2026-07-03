@@ -1,0 +1,13 @@
+Laravel app "{{ include "laravel.fullname" . }}" deployed.
+
+1. Get the application URL:
+   oc get route {{ include "laravel.fullname" . }} -o jsonpath='https://{.spec.host}{"\n"}'
+
+2. Run database migrations:
+   oc exec deployment/{{ include "laravel.fullname" . }} -- php artisan migrate --force
+
+3. View logs:
+   oc logs deployment/{{ include "laravel.fullname" . }}
+
+4. Check pod status:
+   oc get pods -l app={{ include "laravel.fullname" . }}
