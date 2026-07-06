@@ -29,7 +29,7 @@ const config = {
         docs: {
           sidebarPath: './sidebars.js',
           editUrl:
-            'https://github.com/uconn/uconn-openshift-laravel/tree/main/',
+            'https://github.com/bdaley/uconn-openshift-laravel/tree/main/',
         },
         blog: false,
         theme: {
@@ -60,7 +60,7 @@ const config = {
             label: 'Docs',
           },
           {
-            href: 'https://github.com/uconn/uconn-openshift-laravel',
+            href: 'https://github.com/bdaley/uconn-openshift-laravel',
             label: 'GitHub',
             position: 'right',
           },
@@ -108,7 +108,7 @@ const config = {
               },
               {
                 label: 'GitHub',
-                href: 'https://github.com/uconn/uconn-openshift-laravel',
+                href: 'https://github.com/bdaley/uconn-openshift-laravel',
               },
             ],
           },
