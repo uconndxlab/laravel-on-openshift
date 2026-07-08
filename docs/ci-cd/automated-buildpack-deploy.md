@@ -1,6 +1,6 @@
 # Automating Buildpack Builds on Git Push
 
-This guide covers a fully in-cluster pipeline using **Tekton** to build your Laravel app with Heroku buildpacks, push it to Quay, and roll out the update on OpenShift — triggered automatically whenever a new commit lands on `main`.
+This guide covers a fully in-cluster pipeline using **Tekton** to build your Laravel app with Paketo buildpacks, push it to Quay, and roll out the update on OpenShift — triggered automatically whenever a new commit lands on `main`.
 
 ## Conceptual flow
 
@@ -87,7 +87,7 @@ spec:
       description: Additional tag for :latest
     - name: BUILDER
       type: string
-      default: heroku/builder:22
+      default: paketobuildpacks/builder-jammy-base
   workspaces:
     - name: source
     - name: dockerconfig
@@ -119,6 +119,7 @@ Key details:
 - `--publish` builds and pushes directly to the registry — **no Docker daemon needed**, no privileged containers, no SCC changes
 - The `dockerconfig` workspace provides Quay credentials via `DOCKER_CONFIG`
 - The Node.js and PHP buildpacks are automatically detected from `project.toml` or `package.json` + `composer.json`
+- Required PHP extensions must be explicitly declared in `composer.json` as `ext-*` requirements (for example `"ext-pdo_mysql": "*"`) so the Paketo PHP buildpack can resolve them during build
 
 ### Deploy task — roll out the new image
 
@@ -475,7 +476,7 @@ With the webhook active, every push to `main` will:
 1. GitHub sends a POST to the EventListener Route
 2. Tekton Triggers creates a PipelineRun
 3. The pipeline clones the repo at that commit
-4. `pack build --publish` builds a Heroku-buildpack image and pushes it to Quay as `dev:<full-sha>` + `dev:latest`
+4. `pack build --publish` builds a Paketo-buildpack image and pushes it to Quay as `dev:<full-sha>` + `dev:latest`
 5. `oc set image` updates the Deployment, triggering a rollout
 
 ## Adding a migration step
@@ -606,6 +607,14 @@ Or automate promotion via a separate Tekton Pipeline triggered on tag or manual 
 | **Gitea / self-hosted** | Varies | Create a custom TriggerBinding matching the JSON payload |
 
 The Pipeline itself does not change — only the TriggerBinding and webhook URL differ.
+
+## Buildpack environment variables
+
+Paketo buildpacks accept environment variables to control the build. Set these in `project.toml` under `[build.env]` or as `env` entries in your Tekton task. For the complete Laravel-focused reference, see [the canonical Paketo environment variables table](../images/paketo-buildpack.md#environment-variables).
+
+Required PHP extensions must be explicitly declared in `composer.json` as `ext-*` dependencies so Paketo can resolve and install what your application needs.
+
+Common pipeline settings include `BP_NODE_VERSION`, `BP_PHP_VERSION`, `BP_PHP_WEB_DIR`, `BP_PHP_SERVER`, `NODE_ENV`, `BP_COMPOSER_INSTALL_OPTIONS`, and `BP_COMPOSER_INSTALL_DEV`.
 
 ## Troubleshooting
 

@@ -22,7 +22,7 @@ const sidebars = {
     {
       type: 'category',
       label: 'Building Images',
-      items: ['images/heroku-buildpack'],
+      items: ['images/paketo-buildpack'],
     },
     {
       type: 'category',

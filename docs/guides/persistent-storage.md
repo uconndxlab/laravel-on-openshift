@@ -171,7 +171,7 @@ DB_PASSWORD=<random-password>
 ```
 
 3. Store `DB_PASSWORD` in a Secret, not a ConfigMap
-4. Add the `pdo_mysql` extension to your `composer.json` (Heroku buildpacks include it by default):
+4. Add the `pdo_mysql` extension to your `composer.json` as an explicit requirement (Paketo PHP buildpacks only install non-default extensions when declared):
 
 ```json
 "require": {

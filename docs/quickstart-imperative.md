@@ -76,7 +76,7 @@ The SQLite database belongs on its persistent volume in production, and `.env` i
 
 ## 2. Create a project.toml for buildpack repeatability
 
-Heroku buildpacks auto-detect your Laravel stack — they install the correct PHP version, run Composer, compile Vite assets, and configure PHP-FPM behind Nginx. No Containerfile needed.
+Paketo buildpacks auto-detect your Laravel stack — they install the requested PHP version, run Composer, and compile frontend assets when Node.js is present. No Containerfile needed.
 
 Create `project.toml` at the project root:
 
@@ -84,16 +84,21 @@ Create `project.toml` at the project root:
 [_]
 
 [[build.buildpacks]]
-id = "heroku/nodejs"
+id = "paketo-buildpacks/nodejs"
 
 [[build.buildpacks]]
-id = "heroku/php"
+id = "paketo-buildpacks/php"
 
 [build.env]
 BP_NODE_VERSION = "20"
 BP_PHP_VERSION = "8.3"
+BP_PHP_WEB_DIR = "public"
 NODE_ENV = "production"
 ```
+
+Required PHP extensions must be explicitly declared in `composer.json` using `ext-*` requirements (for example, `"ext-pdo_mysql": "*"`). Paketo PHP buildpacks only provide the default extension set unless your Composer requirements request additional extensions.
+
+See the full [Paketo environment variables reference](images/paketo-buildpack.md#environment-variables) for buildpack configuration options, including Composer overrides like `BP_COMPOSER_INSTALL_OPTIONS`.
 
 Also create a `.dockerignore` so `pack` doesn't send unnecessary files to the build container:
 
@@ -109,17 +114,17 @@ database/database.sqlite
 
 ```bash
 pack build quay.apps.uconn.edu/<org>/dev:latest \
-  --builder heroku/builder:22 \
+  --builder paketobuildpacks/builder-jammy-base \
   --publish
 ```
 
 This single command:
 
-- Builds the image using Heroku buildpacks (Node.js compiles assets, then PHP configures the runtime)
+- Builds the image using Paketo buildpacks (`paketo-buildpacks/nodejs`, then `paketo-buildpacks/php`)
 - The resulting image serves Laravel from `/var/www/html/public` on **port 8080**, with PHP-FPM proxied behind Nginx
 - Pushes the finished image directly to Quay — no local `podman push` needed
 
-> To test locally first: `pack build myapp:latest --builder heroku/builder:22 && docker run -it -p 8080:8080 -e APP_KEY=$(php artisan key:generate --show) myapp:latest`
+> To test locally first: `pack build myapp:latest --builder paketobuildpacks/builder-jammy-base && docker run -it -p 8080:8080 -e APP_KEY=$(php artisan key:generate --show) myapp:latest`
 
 ## 4. Deploy on OpenShift
 
@@ -390,7 +395,7 @@ oc logs deployment/myapp -n <team>-test
 
 ## Next steps
 
-- Learn more about [building images with Heroku buildpacks](images/heroku-buildpack.md) (custom extensions, Nginx config)
+- Learn more about [building images with Paketo buildpacks](images/paketo-buildpack.md) (build configuration and extension requirements)
 - Set up [automated deployments with Tekton](ci-cd/automated-buildpack-deploy.md) so every `git push` triggers a build and rollout
 - Read about [persistent storage options](guides/persistent-storage.md) including backup strategies and MySQL migration
 - Explore [production patterns](guides/production-patterns.md) for queue workers, scheduled tasks, and blue-green deployments
