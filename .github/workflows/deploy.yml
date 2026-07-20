@@ -25,11 +25,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-        env:
-          DEPLOY_TARGET: github-pages
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: build
+          path: dist
 
   deploy:
     environment:

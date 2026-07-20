@@ -1,0 +1,31 @@
+---
+title: UConn OpenShift Laravel
+description: Documentation for deploying Laravel applications on UConn's OpenShift Container Platform
+template: splash
+hero:
+  tagline: Deploy Laravel applications on UConn's OpenShift cluster
+  actions:
+    - text: Get Started
+      link: /uconn-openshift-laravel/quickstart/
+      icon: right-arrow
+    - text: Quickstart
+      link: /uconn-openshift-laravel/quickstart/
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Quay Registry" icon="container">
+    Store and manage container images in UConn's private registry at `quay.apps.uconn.edu`.
+    [Learn more →](/uconn-openshift-laravel/quay/getting-started/)
+  </Card>
+  <Card title="CI/CD Pipelines" icon="deploy">
+    Automate builds and deployments with Tekton Pipelines-as-Code and Bitbucket.
+    [Learn more →](/uconn-openshift-laravel/ci-cd/tekton-bitbucket/)
+  </Card>
+  <Card title="Laravel on OpenShift" icon="open-book">
+    Deploy Laravel applications with environment config, secrets, and OpenShift-native tooling.
+    [View quickstart →](/uconn-openshift-laravel/quickstart/)
+  </Card>
+</CardGrid>
