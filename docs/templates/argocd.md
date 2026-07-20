@@ -160,7 +160,7 @@ The pipeline just builds and pushes, no deploy task needed:
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: buildpack-pipeline
+  name: build-pipeline
 spec:
   params:
     - name: GIT_REPO
@@ -170,7 +170,7 @@ spec:
   tasks:
     - name: build
       taskRef:
-        name: buildpack-build
+        name: container-build
       params:
         - name: GIT_REPO
           value: $(params.GIT_REPO)

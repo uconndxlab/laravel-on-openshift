@@ -22,15 +22,20 @@ const sidebars = {
     {
       type: 'category',
       label: 'Building Images',
-      items: ['images/paketo-buildpack'],
+      items: ['images/containerfile'],
     },
     {
       type: 'category',
       label: 'CI/CD',
-      items: ['ci-cd/tekton-bitbucket', 'ci-cd/automated-buildpack-deploy'],
+      items: ['ci-cd/tekton-bitbucket', 'ci-cd/automated-deploy'],
     },
     'quickstart-imperative',
     'troubleshooting',
+    {
+      type: 'category',
+      label: 'Archive',
+      items: ['archive/images/paketo-buildpack', 'archive/ci-cd/automated-buildpack-deploy'],
+    },
   ],
 };
 

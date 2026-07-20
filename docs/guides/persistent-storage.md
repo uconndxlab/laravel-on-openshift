@@ -171,7 +171,7 @@ DB_PASSWORD=<random-password>
 ```
 
 3. Store `DB_PASSWORD` in a Secret, not a ConfigMap
-4. Add the `pdo_mysql` extension to your `composer.json` as an explicit requirement (Paketo PHP buildpacks only install non-default extensions when declared):
+4. Add the `pdo_mysql` extension in your `Containerfile` (via `docker-php-ext-install`) and to `composer.json` as an explicit requirement:
 
 ```json
 "require": {
@@ -231,7 +231,7 @@ oc apply -f migrate-job.yaml -n <team>-dev
 
 ### C. Automate in CI/CD
 
-See the [CI/CD migration task](../ci-cd/automated-buildpack-deploy.md#adding-a-migration-step) guide for Tekton pipeline integration.
+See the [CI/CD migration task](../ci-cd/automated-deploy.md#adding-a-migration-step) guide for Tekton pipeline integration.
 
 ## Viewing logs
 

@@ -19,8 +19,7 @@ Before starting, ensure you have the following:
 
 | Tool | Purpose | Install |
 |---|---|---|
-| **Pack CLI** | Build images with Cloud Native Buildpacks (no Dockerfile needed) | [buildpacks.io](https://buildpacks.io/docs/tools/pack/) |
-| **Podman** or **Docker** | Push images to Quay | [podman.io](https://podman.io/getting-started/installation) / [docker.com](https://docs.docker.com/get-docker/) |
+| **Podman** or **Docker** | Build and push container images | [podman.io](https://podman.io/getting-started/installation) / [docker.com](https://docs.docker.com/get-docker/) |
 | **OpenShift CLI (`oc`)** | Interact with the cluster | [OpenShift docs](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) |
 | **Git** | Version control | [git-scm.com](https://git-scm.com/) |
 | **PHP + Composer** | Laravel development | [php.net](https://www.php.net/downloads) / [getcomposer.org](https://getcomposer.org/) |
@@ -74,33 +73,40 @@ database/database.sqlite
 
 The SQLite database belongs on its persistent volume in production, and `.env` is for local development only — OpenShift uses Secrets and ConfigMaps instead.
 
-## 2. Create a project.toml for buildpack repeatability
+## 2. Create a Containerfile
 
-Paketo buildpacks auto-detect your Laravel stack — they install the requested PHP version, run Composer, and compile frontend assets when Node.js is present. No Containerfile needed.
+Place a `Containerfile` (or `Dockerfile`) at the project root so OpenShift or local tooling can build a production image from your source.
 
-Create `project.toml` at the project root:
+```dockerfile
+FROM php:8.3-fpm-alpine AS build
 
-```toml
-[_]
+# Install system dependencies and PHP extensions
+RUN apk add --no-cache nodejs npm
+RUN docker-php-ext-install pdo_mysql pdo_sqlite bcmath
 
-[[build.buildpacks]]
-id = "paketo-buildpacks/nodejs"
+# Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-[[build.buildpacks]]
-id = "paketo-buildpacks/php"
+WORKDIR /var/www/html
+COPY . .
 
-[build.env]
-BP_NODE_VERSION = "20"
-BP_PHP_VERSION = "8.3"
-BP_PHP_WEB_DIR = "public"
-NODE_ENV = "production"
+# Install dependencies and build assets
+RUN composer install --no-dev --optimize-autoloader \
+    && npm ci && npm run build
+
+# OpenShift compatibility — group-writable for random UID
+RUN chown -R :www-data storage bootstrap/cache \
+    && chmod -R g+w storage bootstrap/cache
+
+EXPOSE 9000
+CMD ["php-fpm"]
 ```
 
-Required PHP extensions must be explicitly declared in `composer.json` using `ext-*` requirements (for example, `"ext-pdo_mysql": "*"`). Paketo PHP buildpacks only provide the default extension set unless your Composer requirements request additional extensions.
+Required PHP extensions must be declared both in the `Containerfile` (via `docker-php-ext-install`) *and* in `composer.json` using `ext-*` requirements (for example, `"ext-pdo_mysql": "*"`).
 
-See the full [Paketo environment variables reference](images/paketo-buildpack.md#environment-variables) for buildpack configuration options, including Composer overrides like `BP_COMPOSER_INSTALL_OPTIONS`.
+See the full [Containerfile reference](images/containerfile.md) for more options, including multi-stage builds for frontend assets and Nginx integration.
 
-Also create a `.dockerignore` so `pack` doesn't send unnecessary files to the build container:
+Also create a `.dockerignore` to keep the build context lean:
 
 ```
 node_modules
@@ -110,21 +116,22 @@ vendor
 database/database.sqlite
 ```
 
-## 3. Build and publish the image directly to Quay
+## 3. Build and publish the image to Quay
 
 ```bash
-pack build quay.apps.uconn.edu/<org>/dev:latest \
-  --builder paketobuildpacks/builder-jammy-base \
-  --publish
+podman build -t quay.apps.uconn.edu/<org>/dev:latest .
+podman login quay.apps.uconn.edu
+podman push quay.apps.uconn.edu/<org>/dev:latest
 ```
 
-This single command:
+Or with Docker:
 
-- Builds the image using Paketo buildpacks (`paketo-buildpacks/nodejs`, then `paketo-buildpacks/php`)
-- The resulting image serves Laravel from `/var/www/html/public` on **port 8080**, with PHP-FPM proxied behind Nginx
-- Pushes the finished image directly to Quay — no local `podman push` needed
+```bash
+docker build -t quay.apps.uconn.edu/<org>/dev:latest -f Containerfile .
+docker push quay.apps.uconn.edu/<org>/dev:latest
+```
 
-> To test locally first: `pack build myapp:latest --builder paketobuildpacks/builder-jammy-base && docker run -it -p 8080:8080 -e APP_KEY=$(php artisan key:generate --show) myapp:latest`
+> To test locally first: `docker run -it -p 8080:9000 -e APP_KEY=$(php artisan key:generate --show) quay.apps.uconn.edu/<org>/dev:latest`
 
 ## 4. Deploy on OpenShift
 
@@ -395,7 +402,7 @@ oc logs deployment/myapp -n <team>-test
 
 ## Next steps
 
-- Learn more about [building images with Paketo buildpacks](images/paketo-buildpack.md) (build configuration and extension requirements)
-- Set up [automated deployments with Tekton](ci-cd/automated-buildpack-deploy.md) so every `git push` triggers a build and rollout
+- Learn more about [building images with a Containerfile](images/containerfile.md) including multi-stage builds and Nginx integration
+- Set up [automated deployments with Tekton](ci-cd/automated-deploy.md) so every `git push` triggers a build and rollout
 - Read about [persistent storage options](guides/persistent-storage.md) including backup strategies and MySQL migration
 - Explore [production patterns](guides/production-patterns.md) for queue workers, scheduled tasks, and blue-green deployments

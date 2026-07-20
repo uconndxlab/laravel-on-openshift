@@ -86,7 +86,7 @@ In a Tekton pipeline, add a deploy task for the worker:
 ```yaml
 - name: deploy-worker
   taskRef:
-    name: buildpack-deploy
+    name: build-deploy
   runAfter: [migrate]
   params:
     - name: IMAGE

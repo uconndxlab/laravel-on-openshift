@@ -124,7 +124,7 @@ In a Tekton pipeline, the deploy task can use the template instead of `oc set im
       | oc apply -f - -n $(params.NAMESPACE)
 ```
 
-See the [CI/CD guide](/docs/ci-cd/automated-buildpack-deploy#using-the-openshift-template-in-a-pipeline) for a full example.
+See the [CI/CD guide](/docs/ci-cd/automated-deploy#using-the-openshift-template-in-a-pipeline) for a full example.
 
 ## Reference
 
