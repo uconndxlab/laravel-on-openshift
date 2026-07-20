@@ -373,6 +373,104 @@ spec:
             claimName: laravel-storage
 ```
 
+---
+
+## PostgreSQL on PVCs
+
+PostgreSQL requires careful PVC configuration. The official PostgreSQL image skips database initialization if the data directory is not empty, and the data path changes between major versions.
+
+### 1. Create the PVC
+
+```yaml
+# postgres-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+### 2. Understand `PGDATA`
+
+PostgreSQL uses the `PGDATA` environment variable to locate its data directory.
+
+> **PostgreSQL 18+**: The `PGDATA` path is version-specific. For version 18 it is `/var/lib/postgresql/18/docker`. Later versions replace `18` with their respective major version (e.g., `/var/lib/postgresql/19/docker` for PostgreSQL 19.x). The `VOLUME` was changed to `/var/lib/postgresql` in 18+, allowing faster `pg_upgrade` with `--link` across major upgrades.
+
+> **PostgreSQL 17 and below**: Mount the data volume at `/var/lib/postgresql/data` — **not** at `/var/lib/postgresql`. Mounting at the parent path causes data to be written to an anonymous volume that is lost when the container is re-created.
+
+### 3. Mount and deploy
+
+For PostgreSQL 17 and below:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: laravel
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-creds
+                  key: password
+            - name: POSTGRES_DB
+              value: laravel
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+```
+
+Key points:
+
+- **`subPath: pgdata`** — isolates data in a clean subdirectory, avoiding the `lost+found` folder that the PVC root may contain. Without this, PostgreSQL sees a non-empty directory and skips initialization, ignoring `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD`.
+- **`PGDATA`** — explicitly set to the subdirectory so PostgreSQL writes to a child path rather than the mount root. Either `subPath` or a custom `PGDATA` is sufficient; using both is safe.
+
+### Verify initialization
+
+```bash
+oc get pods -n <team>-dev
+oc logs deployment/postgres -n <team>-dev
+```
+
+A successful first start shows:
+
+```
+PostgreSQL Database directory appears to contain a database; Skipping initialization
+```
+
+If you see this and no custom database was created, the volume likely had leftover content. Use `subPath` or `PGDATA` to isolate into a fresh subdirectory.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -382,3 +480,6 @@ spec:
 | `Unable to write to storage/` | Wrong permissions on PVC | Init container should `chmod 775 storage` |
 | `SQLSTATE[HY000]: General error: 23` | Database file is locked by another pod | Check you only have 1 replica |
 | PVC stays `Pending` | No storage class available or quota exceeded | `oc describe pvc laravel-sqlite` to see events |
+| PostgreSQL: "Skipping initialization" on a fresh PVC | New PVC has `lost+found` at root; not truly empty | Add `subPath: pgdata` to volume mount, or set `PGDATA` to a child path |
+| PostgreSQL: data lost after pod re-creation | Volume mounted at `/var/lib/postgresql` instead of `/var/lib/postgresql/data` (PG 17 and below) | Change mount path to `/var/lib/postgresql/data`; for PG 18+, target `/var/lib/postgresql` |
+| PostgreSQL: `FATAL: database "..." does not exist` | Initialization skipped the custom database creation | Check logs for "Skipping initialization"; verify PVC is empty or use `subPath` |
