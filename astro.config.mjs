@@ -41,6 +41,7 @@ export default defineConfig({
           label: 'Deployment Guides',
           items: [
             { label: 'Persistent Storage', slug: 'guides/persistent-storage' },
+            { label: 'Database Backups', slug: 'guides/database-backups' },
             { label: 'Production Patterns', slug: 'guides/production-patterns' },
           ],
         },

@@ -258,7 +258,9 @@ If `LOG_CHANNEL=stack` (the Laravel default), logs are written to `storage/logs/
 
 ## Backing up the SQLite database
 
-Since SQLite stores everything in a single file, backup is straightforward. Use a Kubernetes CronJob to dump the database periodically:
+Since SQLite stores everything in a single file, backup is straightforward. Use a Kubernetes CronJob to dump the database periodically.
+
+> The example below uses `emptyDir` for demonstration only. For production, see the [Database Backups guide](/guides/database-backups/) which covers dedicated backup PVCs, 30-day retention, and PostgreSQL backups as well.
 
 ```yaml
 apiVersion: batch/v1
