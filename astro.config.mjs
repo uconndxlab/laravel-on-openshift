@@ -16,11 +16,11 @@ export default defineConfig({
   },
   integrations: [
     starlight({
-      title: 'UConn OpenShift Laravel',
+      title: 'Laravel Deployment Guide for UConn OpenShift',
       description: 'Deploy Laravel applications on UConn\'s OpenShift cluster',
       logo: {
-        src: './src/assets/logo.svg',
-        replacesTitle: true,
+        src: './src/assets/laravel-mark-rgb-red.svg',
+        replacesTitle: false,
       },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/bdaley/uconn-openshift-laravel' },
