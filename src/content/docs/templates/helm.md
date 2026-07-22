@@ -131,4 +131,4 @@ In a Tekton pipeline, the deploy task can run `helm upgrade`:
 
 ## Reference
 
-The full chart source is at [`templates/helm/laravel/`](https://github.com/bdaley/uconn-openshift-laravel/tree/main/templates/helm/laravel).
+The full chart source is at [`templates/helm/laravel/`](https://github.com/uconndxlab/laravel-on-openshift/tree/main/templates/helm/laravel).

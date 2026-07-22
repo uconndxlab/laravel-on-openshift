@@ -24,7 +24,7 @@ npm run preview      # preview the built site locally
 
 ## Config quirks
 
-- `base: '/uconn-openshift-laravel'` — set for GitHub Pages deployment under a sub-path
+- `base: '/laravel-on-openshift'` — set for GitHub Pages deployment under a sub-path
 - `onBrokenLinks` is not a Starlight feature; use `astro build` to catch internal 404s
 - Sidebar is configured in `astro.config.mjs` under `starlight.sidebar`
 

@@ -117,7 +117,7 @@ In a Tekton pipeline, the deploy task can use the template instead of `oc set im
 - name: deploy
   image: registry.access.redhat.com/ubi8/openshift-cli:latest
   script: |
-    oc process -f https://raw.githubusercontent.com/bdaley/uconn-openshift-laravel/main/templates/openshift/laravel-template.yaml \
+    oc process -f https://raw.githubusercontent.com/uconndxlab/laravel-on-openshift/main/templates/openshift/laravel-template.yaml \
       -p APP_NAME=$(params.DEPLOYMENT) \
       -p NAMESPACE=$(params.NAMESPACE) \
       -p IMAGE=$(params.IMAGE_PREFIX) \
@@ -131,4 +131,4 @@ See the [CI/CD guide](/ci-cd/automated-deploy/#using-the-openshift-template-in-a
 
 ## Reference
 
-The full template source is at [`templates/openshift/laravel-template.yaml`](https://github.com/bdaley/uconn-openshift-laravel/blob/main/templates/openshift/laravel-template.yaml).
+The full template source is at [`templates/openshift/laravel-template.yaml`](https://github.com/uconndxlab/laravel-on-openshift/blob/main/templates/openshift/laravel-template.yaml).

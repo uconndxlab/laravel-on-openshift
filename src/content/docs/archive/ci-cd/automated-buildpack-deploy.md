@@ -184,7 +184,7 @@ spec:
     - name: deploy
       image: registry.access.redhat.com/ubi8/openshift-cli:latest
       script: |
-        oc process -f https://raw.githubusercontent.com/bdaley/uconn-openshift-laravel/main/templates/openshift/laravel-template.yaml \
+        oc process -f https://raw.githubusercontent.com/uconndxlab/laravel-on-openshift/main/templates/openshift/laravel-template.yaml \
           -p APP_NAME=$(params.DEPLOYMENT) \
           -p NAMESPACE=$(params.NAMESPACE) \
           -p IMAGE=$(params.IMAGE_PREFIX) \

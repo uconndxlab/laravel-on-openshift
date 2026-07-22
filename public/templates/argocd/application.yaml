@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/bdaley/uconn-openshift-laravel
+    repoURL: https://github.com/uconndxlab/laravel-on-openshift
     targetRevision: main
     path: templates/openshift
   destination:

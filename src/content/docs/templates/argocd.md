@@ -32,7 +32,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/bdaley/uconn-openshift-laravel
+    repoURL: https://github.com/uconndxlab/laravel-on-openshift
     targetRevision: main
     path: templates/openshift
     plugin:
@@ -74,7 +74,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/bdaley/uconn-openshift-laravel
+    repoURL: https://github.com/uconndxlab/laravel-on-openshift
     targetRevision: main
     path: templates/helm/laravel
     helm:
@@ -194,4 +194,4 @@ Deployment is handled by ArgoCD automatically. To trigger a sync after a build, 
 
 - [ArgoCD Documentation](https://argo-cd.readthedocs.io/)
 - [ArgoCD Image Updater](https://argocd-image-updater.readthedocs.io/)
-- Example Application: [`templates/argocd/application.yaml`](https://github.com/bdaley/uconn-openshift-laravel/blob/main/templates/argocd/application.yaml)
+- Example Application: [`templates/argocd/application.yaml`](https://github.com/uconndxlab/laravel-on-openshift/blob/main/templates/argocd/application.yaml)

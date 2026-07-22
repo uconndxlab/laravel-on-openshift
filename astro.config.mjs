@@ -4,10 +4,10 @@ import starlight from '@astrojs/starlight';
 import { unified } from '@astrojs/markdown-remark';
 import { rehypePrefixLinks } from './src/plugins/rehype-prefix-links.mjs';
 
-const base = '/uconn-openshift-laravel';
+const base = '/laravel-on-openshift';
 
 export default defineConfig({
-  site: 'https://bdaley.github.io',
+  site: 'https://uconndxlab.github.io',
   base,
   markdown: {
     processor: unified({
@@ -23,7 +23,7 @@ export default defineConfig({
         replacesTitle: false,
       },
       social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/bdaley/uconn-openshift-laravel' },
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/uconndxlab/laravel-on-openshift' },
       ],
       customCss: ['./src/styles/custom.css'],
       sidebar: [
