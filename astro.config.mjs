@@ -43,6 +43,7 @@ export default defineConfig({
             { label: 'Persistent Storage', slug: 'guides/persistent-storage' },
             { label: 'Database Backups', slug: 'guides/database-backups' },
             { label: 'Production Patterns', slug: 'guides/production-patterns' },
+            { label: 'Going Live', slug: 'guides/going-live' },
           ],
         },
         {

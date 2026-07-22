@@ -207,6 +207,18 @@ oc exec deployment/postgres -- psql -U postgres -d postgres -c "\l"
 
 > **PostgreSQL 18+**: The `VOLUME` was changed to `/var/lib/postgresql` and `PGDATA` defaults to `/var/lib/postgresql/18/docker`. On 18+, mount at `/var/lib/postgresql` and set `PGDATA` to the version-specific path if needed.
 
+## RBAC errors — "cannot list resource roles" or "cannot create rolebindings"
+
+**Cause**: Your user account has the `edit` cluster role, which does not include permissions to view or modify Roles or RoleBindings.
+
+**Fix**: Contact ITS (abiodun@uconn.edu) to update your RBAC role to include Role and RoleBinding management within your namespace.
+
+**Verify**:
+```bash
+oc auth can-i get roles -n <namespace>
+oc auth can-i get rolebindings -n <namespace>
+```
+
 ## Need more help?
 
 Contact Platform Engineering: **abiodun@uconn.edu**, **bharani@uconn.edu**
