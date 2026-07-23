@@ -131,4 +131,4 @@ See the [CI/CD guide](/ci-cd/automated-deploy/#using-the-openshift-template-in-a
 
 ## Reference
 
-The full template source is at [`templates/openshift/laravel-template.yaml`](https://github.com/uconndxlab/laravel-on-openshift/blob/main/templates/openshift/laravel-template.yaml).
+The full template source is at [`public/templates/openshift/laravel-template.yaml`](https://github.com/uconndxlab/laravel-on-openshift/blob/main/public/templates/openshift/laravel-template.yaml).
