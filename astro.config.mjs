@@ -42,6 +42,7 @@ export default defineConfig({
           items: [
             { label: 'Persistent Storage', slug: 'guides/persistent-storage' },
             { label: 'Database Backups', slug: 'guides/database-backups' },
+            { label: 'Email Catching with Mailpit', slug: 'guides/mailpit' },
             { label: 'Production Patterns', slug: 'guides/production-patterns' },
             { label: 'Going Live', slug: 'guides/going-live' },
           ],
